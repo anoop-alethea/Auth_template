@@ -1,0 +1,2121 @@
+--- FILE PATH: src\adapters\gateways\AuthGateway.ts ---
+import { User } from "../../core/entities/User";
+
+export interface AuthGateway {
+  signIn(email: string, password: string): Promise<User>;
+  signUp(email: string, password: string): Promise<User>;
+  signOut(): Promise<void>;
+  resetPassword(email: string): Promise<void>;
+  updatePassword(newPassword: string): Promise<void>;
+}
+
+--- END OF FILE: src\adapters\gateways\AuthGateway.ts ---
+
+--- FILE PATH: src\adapters\gateways\BillingGateway.ts ---
+import { Subscription } from "../../core/entities/Subscription";
+
+export interface BillingGateway {
+  fetchSubscription(userId: string): Promise<Subscription>;
+  upgradePlan(userId: string, newPlan: 'basic' | 'pro' | 'enterprise'): Promise<Subscription>;
+}
+
+--- END OF FILE: src\adapters\gateways\BillingGateway.ts ---
+
+--- FILE PATH: src\adapters\gateways\ProfileGateway.ts ---
+import { User } from "../../core/entities/User";
+
+export interface ProfileGateway {
+  fetchProfile(userId: string): Promise<User>;
+  updateProfile(user: User): Promise<User>;
+}
+
+--- END OF FILE: src\adapters\gateways\ProfileGateway.ts ---
+
+--- FILE PATH: src\App.css ---
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+--- END OF FILE: src\App.css ---
+
+--- FILE PATH: src\App.tsx ---
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./presentation/context/AuthContext";
+import { ProfileProvider } from "./presentation/context/ProfileContext";
+import { BillingProvider } from "./presentation/context/BillingContext";
+import { PrivateRoute } from "./presentation/routes/PrivateRoute";
+import { RoleBasedRoute } from "./presentation/routes/RoleBasedRoute";
+import { Navbar } from "./presentation/components/shared/Navbar";
+import { Footer } from "./presentation/components/shared/Footer";
+
+// Auth Pages
+import Login from "./presentation/pages/auth/Login";
+import Signup from "./presentation/pages/auth/Signup";
+import ResetPassword from "./presentation/pages/auth/ResetPassword";
+import UpdatePassword from "./presentation/pages/auth/UpdatePassword";
+
+// Main Pages
+import Dashboard from "./presentation/pages/dashboard/Dashboard";
+import ManageBilling from "./presentation/pages/billing/ManageBilling";
+import EditProfile from "./presentation/pages/profile/EditProfile";
+
+// Error Pages
+import NotFound from "./presentation/pages/error/NotFound";
+import ServerError from "./presentation/pages/error/ServerError";
+
+// Toastify
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <ProfileProvider>
+        <BillingProvider>
+          <Router>
+            <Navbar />
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/update-password" element={<UpdatePassword />} />
+
+              {/* Protected Routes */}
+              <Route element={<PrivateRoute />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/billing" element={<ManageBilling />} />
+                <Route path="/profile" element={<EditProfile />} />
+              </Route>
+
+              {/* Role Based Example (optional) */}
+              <Route element={<RoleBasedRoute requiredRole="admin" />}>
+                {/* <Route path="/admin" element={<AdminDashboard />} /> */}
+              </Route>
+
+              {/* Error Pages */}
+              <Route path="/500" element={<ServerError />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            <Footer />
+
+            {/* Toast Notifications */}
+            <ToastContainer
+              position="top-right"
+              autoClose={4000}
+              hideProgressBar={false}
+              newestOnTop
+              closeOnClick
+              pauseOnHover
+              draggable
+              pauseOnFocusLoss
+              theme="light" // You can change to "dark" if you prefer
+            />
+          </Router>
+        </BillingProvider>
+      </ProfileProvider>
+    </AuthProvider>
+  );
+};
+
+export default App;
+
+--- END OF FILE: src\App.tsx ---
+
+--- FILE PATH: src\config\appConfig.ts ---
+export const appConfig = {
+    appName: "SaaSApp",
+    defaultCurrency: "USD",
+    supportedPlans: ["basic", "pro", "enterprise"] as const,
+    companyName: "Your Company Name",
+    supportEmail: "support@yourcompany.com",
+  };
+  
+--- END OF FILE: src\config\appConfig.ts ---
+
+--- FILE PATH: src\config\supabaseConfig.ts ---
+export const supabaseConfig = {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
+  };
+  
+--- END OF FILE: src\config\supabaseConfig.ts ---
+
+--- FILE PATH: src\core\entities\Subscription.ts ---
+export interface SubscriptionProps {
+    id: string;
+    userId: string;
+    status: 'active' | 'trialing' | 'past_due' | 'canceled';
+    plan: 'basic' | 'pro' | 'enterprise';
+    currentPeriodEnd: Date;
+  }
+  
+  export class Subscription {
+    readonly id: string;
+    readonly userId: string;
+    readonly status: 'active' | 'trialing' | 'past_due' | 'canceled';
+    readonly plan: 'basic' | 'pro' | 'enterprise';
+    readonly currentPeriodEnd: Date;
+  
+    constructor(props: SubscriptionProps) {
+      this.id = props.id;
+      this.userId = props.userId;
+      this.status = props.status;
+      this.plan = props.plan;
+      this.currentPeriodEnd = props.currentPeriodEnd;
+    }
+  }
+  
+--- END OF FILE: src\core\entities\Subscription.ts ---
+
+--- FILE PATH: src\core\entities\User.ts ---
+export interface UserProps {
+    id: string;
+    email: string;
+    fullName?: string;
+    avatarUrl?: string;
+    role?: 'user' | 'admin'; // optional roles
+  }
+  
+  export class User {
+    readonly id: string;
+    readonly email: string;
+    fullName?: string;
+    avatarUrl?: string;
+    role: 'user' | 'admin';
+  
+    constructor(props: UserProps) {
+      this.id = props.id;
+      this.email = props.email;
+      this.fullName = props.fullName ?? '';
+      this.avatarUrl = props.avatarUrl ?? '';
+      this.role = props.role ?? 'user';
+    }
+  }
+  
+--- END OF FILE: src\core\entities\User.ts ---
+
+--- FILE PATH: src\core\usecases\AuthUseCase.ts ---
+import { User } from "../entities/User";
+import { AuthGateway } from "../../adapters/gateways/AuthGateway";
+
+export class AuthUseCase {
+  private authGateway: AuthGateway;
+
+  constructor(authGateway: AuthGateway) {
+    this.authGateway = authGateway;
+  }
+
+  async login(email: string, password: string): Promise<User> {
+    return await this.authGateway.signIn(email, password);
+  }
+
+  async signup(email: string, password: string): Promise<User> {
+    return await this.authGateway.signUp(email, password);
+  }
+
+  async logout(): Promise<void> {
+    return await this.authGateway.signOut();
+  }
+
+  async resetPassword(email: string): Promise<void> {
+    return await this.authGateway.resetPassword(email);
+  }
+
+  async updatePassword(newPassword: string): Promise<void> {
+    return await this.authGateway.updatePassword(newPassword);
+  }
+}
+
+--- END OF FILE: src\core\usecases\AuthUseCase.ts ---
+
+--- FILE PATH: src\core\usecases\BillingUseCase.ts ---
+import { User } from "../entities/User";
+import { ProfileGateway } from "../../adapters/gateways/ProfileGateway";
+
+interface BillingUseCaseInterface {
+  getSubscription(): Promise<any>;
+  updateSubscription(data: any): Promise<any>;
+  cancelSubscription(): Promise<void>;
+}
+
+export class BillingUseCase implements BillingUseCaseInterface {
+  constructor() {
+    // Initialize dependencies
+  }
+
+  async getSubscription() {
+    // Implementation
+    return {};
+  }
+
+  async updateSubscription(data: any) {
+    // Implementation using the data parameter
+    const updatedSubscription = { ...data, updatedAt: new Date() };
+    return updatedSubscription;
+  }
+
+  async cancelSubscription() {
+    // Implementation
+  }
+}
+
+export class ProfileUseCase {
+  private profileGateway: ProfileGateway;
+
+  constructor(profileGateway: ProfileGateway) {
+    this.profileGateway = profileGateway;
+  }
+
+  async fetchProfile(userId: string): Promise<User> {
+    return await this.profileGateway.fetchProfile(userId);
+  }
+
+  async updateProfile(user: User): Promise<User> {
+    return await this.profileGateway.updateProfile(user);
+  }
+}
+
+--- END OF FILE: src\core\usecases\BillingUseCase.ts ---
+
+--- FILE PATH: src\core\usecases\ProfileUseCase.ts ---
+import { Subscription } from "../entities/Subscription";
+import { BillingGateway } from "../../adapters/gateways/BillingGateway";
+
+interface ProfileUseCaseInterface {
+  getProfile(): Promise<any>;
+  updateProfile(data: any): Promise<any>;
+  deleteProfile(): Promise<void>;
+}
+
+export class ProfileUseCase implements ProfileUseCaseInterface {
+  constructor() {
+    // Initialize dependencies
+  }
+
+  async getProfile() {
+    // Implementation
+    return {};
+  }
+
+  async updateProfile(data: any) {
+    // Implementation using the data parameter
+    const updatedProfile = { ...data, lastUpdated: new Date() };
+    return updatedProfile;
+  }
+
+  async deleteProfile() {
+    // Implementation
+  }
+}
+
+export class BillingUseCase {
+  private billingGateway: BillingGateway;
+
+  constructor(billingGateway: BillingGateway) {
+    this.billingGateway = billingGateway;
+  }
+
+  async fetchSubscription(userId: string): Promise<Subscription> {
+    return await this.billingGateway.fetchSubscription(userId);
+  }
+
+  async upgradePlan(userId: string, newPlan: 'basic' | 'pro' | 'enterprise'): Promise<Subscription> {
+    return await this.billingGateway.upgradePlan(userId, newPlan);
+  }
+}
+
+--- END OF FILE: src\core\usecases\ProfileUseCase.ts ---
+
+--- FILE PATH: src\index.css ---
+
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+--- END OF FILE: src\index.css ---
+
+--- FILE PATH: src\index.tsx ---
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+
+import App from './App';
+import './presentation/styles/tailwind.css';
+
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
+import { ThemeProvider } from './presentation/design/ThemeProvider'; 
+
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+
+root.render(
+  <React.StrictMode>
+    <ThemeProvider>
+      <App />
+      {/* Toast gets theme context too */}
+      <ToastContainer
+        position="top-right"
+        newestOnTop
+        pauseOnFocusLoss={false}
+      />
+    </ThemeProvider>
+  </React.StrictMode>
+);
+
+--- END OF FILE: src\index.tsx ---
+
+--- FILE PATH: src\infrastructure\db\supabaseClient.ts ---
+import { createClient } from '@supabase/supabase-js';
+
+// Access variables using import.meta.env and the VITE_ prefix
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string; // Updated variable name
+
+// Optional: Add checks to ensure variables are defined
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase URL and Anon Key must be provided as environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+--- END OF FILE: src\infrastructure\db\supabaseClient.ts ---
+
+--- FILE PATH: src\infrastructure\services\StripeBillingService.ts ---
+//  Note: Stripe operations are via your server API endpoints (/api/billing/*), not directly client-side, for security reasons.
+import { BillingGateway } from "../../adapters/gateways/BillingGateway";
+import { Subscription } from "../../core/entities/Subscription";
+
+// Stripe client is usually server-side. On frontend we call APIs.
+export class StripeBillingService implements BillingGateway {
+  async fetchSubscription(userId: string): Promise<Subscription> {
+    const response = await fetch(`/api/billing/subscription?userId=${userId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to fetch subscription");
+    }
+
+    return new Subscription({
+      id: data.id,
+      userId: data.userId,
+      status: data.status,
+      plan: data.plan,
+      currentPeriodEnd: new Date(data.currentPeriodEnd),
+    });
+  }
+
+  async upgradePlan(userId: string, newPlan: 'basic' | 'pro' | 'enterprise'): Promise<Subscription> {
+    const response = await fetch(`/api/billing/upgrade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, newPlan }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to upgrade plan");
+    }
+
+    return new Subscription({
+      id: data.id,
+      userId: data.userId,
+      status: data.status,
+      plan: data.plan,
+      currentPeriodEnd: new Date(data.currentPeriodEnd),
+    });
+  }
+}
+
+--- END OF FILE: src\infrastructure\services\StripeBillingService.ts ---
+
+--- FILE PATH: src\infrastructure\services\SupabaseAuthService.ts ---
+import { supabase } from "../db/supabaseClient";
+import { AuthGateway } from "../../adapters/gateways/AuthGateway";
+import { User } from "../../core/entities/User";
+
+export class SupabaseAuthService implements AuthGateway {
+  async signIn(email: string, password: string): Promise<User> {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) {
+      throw new Error(error?.message ?? "Login failed");
+    }
+
+    return new User({
+      id: data.user.id,
+      email: data.user.email ?? '',
+      fullName: data.user.user_metadata?.full_name,
+      avatarUrl: data.user.user_metadata?.avatar_url,
+      role: data.user.role ?? 'user',
+    });
+  }
+
+  async signUp(email: string, password: string): Promise<User> {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error || !data.user) {
+      throw new Error(error?.message ?? "Signup failed");
+    }
+
+    return new User({
+      id: data.user.id,
+      email: data.user.email ?? '',
+      fullName: '',
+      avatarUrl: '',
+      role: 'user',
+    });
+  }
+
+  async signOut(): Promise<void> {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async resetPassword(email: string): Promise<void> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/update-password',
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+
+  async updatePassword(newPassword: string): Promise<void> {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      throw new Error(error.message);
+    }
+  }
+}
+
+--- END OF FILE: src\infrastructure\services\SupabaseAuthService.ts ---
+
+--- FILE PATH: src\infrastructure\services\SupabaseProfileService.ts ---
+import { supabase } from "../db/supabaseClient";
+import { ProfileGateway } from "../../adapters/gateways/ProfileGateway";
+import { User } from "../../core/entities/User";
+
+export class SupabaseProfileService implements ProfileGateway {
+  async fetchProfile(userId: string): Promise<User> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message ?? "Failed to fetch profile");
+    }
+
+    return new User({
+      id: data.id,
+      email: data.email,
+      fullName: data.full_name,
+      avatarUrl: data.avatar_url,
+      role: 'user', // Assume basic user role, customize if needed
+    });
+  }
+
+  async updateProfile(user: User): Promise<User> {
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: user.fullName,
+        avatar_url: user.avatarUrl,
+      })
+      .eq('id', user.id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return user;
+  }
+}
+
+--- END OF FILE: src\infrastructure\services\SupabaseProfileService.ts ---
+
+--- FILE PATH: src\lib\utils.ts ---
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+--- END OF FILE: src\lib\utils.ts ---
+
+--- FILE PATH: src\main.tsx ---
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from "./App";
+
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+--- END OF FILE: src\main.tsx ---
+
+--- FILE PATH: src\presentation\components\auth\LoginForm.tsx ---
+import React, { useState, type FormEvent, type ChangeEvent } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { showSuccess, showError } from "../../../utils/toasts";
+import { Input, Button } from "../../ui/atoms";
+
+export const LoginForm: React.FC = () => {
+  // Assuming useAuth now gets login from context after refactoring the hook as suggested earlier
+  // Note: The original useAuth hook directly called Supabase, which violates Clean Architecture.
+  // You should refactor useAuth to use the AuthContext which injects the AuthUseCase.
+  const { login, loading } = useAuth();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+
+  // Explicitly type the event parameter 'e'
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    // Perform client-side validation here BEFORE submitting
+    // if (!isValidEmail(email)) {
+    //   showError("Please enter a valid email address.");
+    //   return;
+    // }
+    // Add password validation if needed
+
+    try {
+      // Call login from the context/hook (after useAuth refactoring)
+      await login(email, password);
+      showSuccess("Login successful!");
+      navigate("/dashboard"); // Or navigate based on successful login logic
+    } catch (error: any) { // Keep error handling
+      console.error("Login error:", error);
+      // Use specific error message from hook/usecase or a generic one
+      // Example: if (error.message.includes("Invalid login credentials")) { ... }
+      showError(error.message || "An unexpected error occurred during login.");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Use the styled Input component */}
+      <Input
+        type="email"
+        placeholder="Email"
+        value={email}
+        // Explicitly type the ChangeEvent parameter 'e'
+        onChange={(e: ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+        required
+        disabled={loading}
+        // Add error state prop here if implementing inline validation feedback
+      />
+      {/* Use the styled Input component */}
+      <Input
+        type="password"
+        placeholder="Password"
+        value={password}
+        // Explicitly type the ChangeEvent parameter 'e'
+        onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+        required
+        disabled={loading}
+        // Add error state prop here
+      />
+      {/* Add Password Input with Toggle */}
+      {/* Add validation feedback below inputs */}
+
+      {/* Use the styled Button component */}
+      <Button type="submit" disabled={loading} className="w-full"> // Example: make button full width
+        {loading ? "Logging in..." : "Login"}
+      </Button>
+    </form>
+  );
+};
+--- END OF FILE: src\presentation\components\auth\LoginForm.tsx ---
+
+--- FILE PATH: src\presentation\components\auth\OAuthButtons.tsx ---
+import React from 'react';
+import { useAuth } from '../../hooks/useAuth';
+
+export const OAuthButtons: React.FC = () => {
+  const { loading, signInWithProvider } = useAuth();
+
+  const handleOAuthSignIn = async (provider: "google" | "github") => {
+    try {
+      await signInWithProvider(provider);
+    } catch (error) {
+      console.error("OAuth sign-in error:", error);
+      alert("OAuth login failed.");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={() => handleOAuthSignIn("google")}
+        disabled={loading}
+        className="bg-red-600 text-white p-2 rounded disabled:opacity-50"
+      >
+        {loading ? 'Loading...' : 'Continue with Google'}
+      </button>
+      <button
+        onClick={() => handleOAuthSignIn("github")}
+        disabled={loading}
+        className="bg-gray-800 text-white p-2 rounded disabled:opacity-50"
+      >
+        {loading ? 'Loading...' : 'Continue with GitHub'}
+      </button>
+    </div>
+  );
+};
+
+--- END OF FILE: src\presentation\components\auth\OAuthButtons.tsx ---
+
+--- FILE PATH: src\presentation\components\auth\ResetPasswordForm.tsx ---
+import React, { useState } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+
+export const ResetPasswordForm: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const { resetPassword, loading } = useAuth();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await resetPassword(email);
+      if (error) {
+        setMessage('Failed to send reset link: ' + error.message);
+      } else {
+        setMessage('Password reset link sent to your email');
+      }
+    } catch (error: any) {
+      setMessage('Failed to send reset link: ' + error.message);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+          Email
+        </label>
+        <input
+          type="email"
+          id="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+          required
+        />
+      </div>
+      {message && (
+        <p className={`text-sm ${message.includes('Failed') ? 'text-red-600' : 'text-green-600'}`}>
+          {message}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+      >
+        {loading ? 'Sending...' : 'Reset Password'}
+      </button>
+    </form>
+  );
+};
+--- END OF FILE: src\presentation\components\auth\ResetPasswordForm.tsx ---
+
+--- FILE PATH: src\presentation\components\auth\SignupForm.tsx ---
+import { useState } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { showSuccess, showError } from "../../../utils/toasts";
+
+export const SignupForm: React.FC = () => {
+  const { signup } = useAuth();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      await signup(email, password);
+      showSuccess("Signup successful! Please check your email to verify your account.");
+      navigate("/dashboard"); // Redirect after signup (optional)
+    } catch (error: unknown) {
+      console.error("Signup error:", error);
+
+      if (error instanceof Error) {
+        showError(error.message);
+      } else {
+        showError("An unexpected error occurred during signup.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full max-w-md mx-auto">
+      <input
+        type="email"
+        placeholder="Email"
+        className="border border-gray-300 rounded p-2 focus:outline-none focus:ring focus:border-blue-500"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        disabled={loading}
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        className="border border-gray-300 rounded p-2 focus:outline-none focus:ring focus:border-blue-500"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+        disabled={loading}
+      />
+      <button
+        type="submit"
+        disabled={loading}
+        className={`p-2 rounded text-white ${loading ? "bg-green-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+      >
+        {loading ? "Signing up..." : "Sign Up"}
+      </button>
+    </form>
+  );
+};
+
+--- END OF FILE: src\presentation\components\auth\SignupForm.tsx ---
+
+--- FILE PATH: src\presentation\components\billing\BillingPortal.tsx ---
+export const BillingPortal: React.FC = () => {
+    const handleManageBilling = async () => {
+      try {
+        const response = await fetch("/api/billing/portal");
+        const { url } = await response.json();
+        window.location.href = url;
+      } catch (error) {
+        console.error("Billing portal error", error);
+      }
+    };
+  
+    return (
+      <div className="p-8">
+        <h2 className="text-xl font-semibold mb-4">Manage Your Subscription</h2>
+        <button
+          onClick={handleManageBilling}
+          className="bg-blue-700 text-white p-2 rounded"
+        >
+          Open Billing Portal
+        </button>
+      </div>
+    );
+  };
+  
+--- END OF FILE: src\presentation\components\billing\BillingPortal.tsx ---
+
+--- FILE PATH: src\presentation\components\dashboard\DashboardHome.tsx ---
+export const DashboardHome: React.FC = () => {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+        <p>Welcome to your app dashboard! 🎯</p>
+      </div>
+    );
+  };
+  
+--- END OF FILE: src\presentation\components\dashboard\DashboardHome.tsx ---
+
+--- FILE PATH: src\presentation\components\shared\Footer.tsx ---
+export const Footer: React.FC = () => {
+    return (
+      <footer className="bg-gray-800 text-white p-4 text-center mt-8">
+        &copy; {new Date().getFullYear()} SaaSApp. All rights reserved.
+      </footer>
+    );
+  };
+  
+--- END OF FILE: src\presentation\components\shared\Footer.tsx ---
+
+--- FILE PATH: src\presentation\components\shared\LoadingSpinner.tsx ---
+export const LoadingSpinner: React.FC = () => {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-600"></div>
+      </div>
+    );
+  };
+  
+--- END OF FILE: src\presentation\components\shared\LoadingSpinner.tsx ---
+
+--- FILE PATH: src\presentation\components\shared\Navbar.tsx ---
+import { Link } from "react-router-dom";
+
+export const Navbar: React.FC = () => {
+  return (
+    <nav className="bg-gray-900 text-white p-4 flex justify-between">
+      <div className="text-lg font-bold">SaaSApp</div>
+      <div className="flex gap-4">
+        <Link to="/dashboard">Dashboard</Link>
+        <Link to="/billing">Billing</Link>
+        <Link to="/profile">Profile</Link>
+      </div>
+    </nav>
+  );
+};
+
+--- END OF FILE: src\presentation\components\shared\Navbar.tsx ---
+
+--- FILE PATH: src\presentation\context\AuthContext.tsx ---
+import React, { createContext, useContext, useState } from "react";
+import { AuthUseCase } from "../../core/usecases/AuthUseCase";
+import { SupabaseAuthService } from "../../infrastructure/services/SupabaseAuthService";
+import { User } from "../../core/entities/User";
+
+interface AuthContextType {
+  user: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const authUseCase = new AuthUseCase(new SupabaseAuthService());
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+
+  const login = async (email: string, password: string) => {
+    const loggedInUser = await authUseCase.login(email, password);
+    setUser(loggedInUser);
+  };
+
+  const signup = async (email: string, password: string) => {
+    const signedUpUser = await authUseCase.signup(email, password);
+    setUser(signedUpUser);
+  };
+
+  const logout = async () => {
+    await authUseCase.logout();
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, login, signup, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuthContext = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuthContext must be used within an AuthProvider");
+  }
+  return context;
+};
+
+--- END OF FILE: src\presentation\context\AuthContext.tsx ---
+
+--- FILE PATH: src\presentation\context\BillingContext.tsx ---
+import React, { createContext, useContext, useState } from "react";
+import { BillingUseCase } from "../../core/usecases/BillingUseCase";
+import { StripeBillingService } from "../../infrastructure/services/StripeBillingService";
+import { Subscription } from "../../core/entities/Subscription";
+
+interface BillingContextType {
+  subscription: Subscription | null;
+  fetchSubscription: (userId: string) => Promise<void>;
+  upgradePlan: (userId: string, newPlan: 'basic' | 'pro' | 'enterprise') => Promise<void>;
+}
+
+const BillingContext = createContext<BillingContextType | undefined>(undefined);
+
+const billingUseCase = new BillingUseCase(new StripeBillingService());
+
+export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  const fetchSubscription = async (userId: string) => {
+    const sub = await billingUseCase.fetchSubscription(userId);
+    setSubscription(sub);
+  };
+
+  const upgradePlan = async (userId: string, newPlan: 'basic' | 'pro' | 'enterprise') => {
+    const updatedSub = await billingUseCase.upgradePlan(userId, newPlan);
+    setSubscription(updatedSub);
+  };
+
+  return (
+    <BillingContext.Provider value={{ subscription, fetchSubscription, upgradePlan }}>
+      {children}
+    </BillingContext.Provider>
+  );
+};
+
+export const useBillingContext = () => {
+  const context = useContext(BillingContext);
+  if (!context) {
+    throw new Error("useBillingContext must be used within a BillingProvider");
+  }
+  return context;
+};
+
+--- END OF FILE: src\presentation\context\BillingContext.tsx ---
+
+--- FILE PATH: src\presentation\context\ProfileContext.tsx ---
+import React, { createContext, useContext, useState } from "react";
+import { ProfileUseCase } from "../../core/usecases/ProfileUseCase";
+import { SupabaseProfileService } from "../../infrastructure/services/SupabaseProfileService";
+import { User } from "../../core/entities/User";
+
+interface ProfileContextType {
+  profile: User | null;
+  fetchProfile: (userId: string) => Promise<void>;
+  updateProfile: (user: User) => Promise<void>;
+}
+
+const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
+
+const profileUseCase = new ProfileUseCase(new SupabaseProfileService());
+
+export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [profile, setProfile] = useState<User | null>(null);
+
+  const fetchProfile = async (userId: string) => {
+    const userProfile = await profileUseCase.fetchProfile(userId);
+    setProfile(userProfile);
+  };
+
+  const updateProfile = async (user: User) => {
+    const updatedUser = await profileUseCase.updateProfile(user);
+    setProfile(updatedUser);
+  };
+
+  return (
+    <ProfileContext.Provider value={{ profile, fetchProfile, updateProfile }}>
+      {children}
+    </ProfileContext.Provider>
+  );
+};
+
+export const useProfileContext = () => {
+  const context = useContext(ProfileContext);
+  if (!context) {
+    throw new Error("useProfileContext must be used within a ProfileProvider");
+  }
+  return context;
+};
+
+--- END OF FILE: src\presentation\context\ProfileContext.tsx ---
+
+--- FILE PATH: src\presentation\design\ThemeProvider.tsx ---
+import React from 'react';
+import { ThemeProvider as NextThemeProvider } from 'next-themes';
+
+interface ThemeProviderProps {
+  children: React.ReactNode;
+}
+
+export function ThemeProvider({ children }: ThemeProviderProps) {
+  return (
+    <NextThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      {children}
+    </NextThemeProvider>
+  );
+}
+
+--- END OF FILE: src\presentation\design\ThemeProvider.tsx ---
+
+--- FILE PATH: src\presentation\design\themes\dark.ts ---
+
+--- END OF FILE: src\presentation\design\themes\dark.ts ---
+
+--- FILE PATH: src\presentation\design\themes\light.ts ---
+
+--- END OF FILE: src\presentation\design\themes\light.ts ---
+
+--- FILE PATH: src\presentation\design\tokens\colors.ts ---
+export const colors = {
+  primary: {
+    50: '#f0f9ff',
+    100: '#e0f2fe',
+    500: '#0ea5e9',
+    600: '#0284c7',
+    700: '#0369a1',
+  },
+  secondary: {
+    50: '#f8fafc',
+    100: '#f1f5f9',
+    500: '#64748b',
+    600: '#475569',
+    700: '#334155',
+  },
+  // Add more custom colors as needed
+};
+--- END OF FILE: src\presentation\design\tokens\colors.ts ---
+
+--- FILE PATH: src\presentation\design\tokens\spacing.ts ---
+export const spacing = {
+  xs: '0.25rem',
+  sm: '0.5rem',
+  md: '1rem',
+  lg: '1.5rem',
+  xl: '2rem',
+  // Add more custom spacing as needed
+};
+--- END OF FILE: src\presentation\design\tokens\spacing.ts ---
+
+--- FILE PATH: src\presentation\design\tokens\typography.ts ---
+
+--- END OF FILE: src\presentation\design\tokens\typography.ts ---
+
+--- FILE PATH: src\presentation\hooks\useAuth.ts ---
+import { useAuthContext } from "../context/AuthContext";
+import { supabase } from "../../infrastructure/db/supabaseClient";
+import { useState } from "react";
+
+export const useAuth = () => {
+  const context = useAuthContext();
+  const [loading, setLoading] = useState(false);
+
+  const signIn = async (email: string, password: string) => {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    setLoading(false);
+    return { data, error };
+  };
+
+  const signUp = async (email: string, password: string) => {
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    setLoading(false);
+    return { data, error };
+  };
+
+  const signOut = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signOut();
+    setLoading(false);
+    return { error };
+  };
+
+  const resetPassword = async (email: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setLoading(false);
+    return { error };
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    setLoading(false);
+    return { error };
+  };
+
+  const signInWithProvider = async (provider: "google" | "github") => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({ provider });
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    ...context,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    resetPassword,
+    updatePassword,
+    signInWithProvider, // Add this to the returned object
+  };
+};
+
+--- END OF FILE: src\presentation\hooks\useAuth.ts ---
+
+--- FILE PATH: src\presentation\hooks\useBilling.ts ---
+import { useBillingContext } from "../context/BillingContext";
+
+export const useBilling = () => {
+  return useBillingContext();
+};
+
+--- END OF FILE: src\presentation\hooks\useBilling.ts ---
+
+--- FILE PATH: src\presentation\hooks\useProfile.ts ---
+import { useProfileContext } from "../context/ProfileContext";
+
+export const useProfile = () => {
+  return useProfileContext();
+};
+
+--- END OF FILE: src\presentation\hooks\useProfile.ts ---
+
+--- FILE PATH: src\presentation\layouts\Header.tsx ---
+/* components/layout/Header.tsx */
+export default function Header() {
+    return (
+      <header className="w-full bg-slate-900 text-white">
+        {/* inner nav centred but NOT width-capped */}
+        <nav className="mx-auto flex max-w-screen-xl items-center gap-6 px-6 py-4">
+          {/* Brand + links … */}
+        </nav>
+      </header>
+    );
+  }
+  
+--- END OF FILE: src\presentation\layouts\Header.tsx ---
+
+--- FILE PATH: src\presentation\pages\auth\Login.tsx ---
+// src/presentation/pages/auth/Login.tsx
+import React from 'react';
+import { Link } from 'react-router-dom';
+// Corrected Imports: Import directly from the ui directory
+// Card and its sub-components are exported via ui/index.ts -> ui/atoms/index.ts -> ui/atoms/card.tsx
+import { Card, CardHeader, CardContent, CardFooter } from "../../ui/atoms";
+import { LoginForm } from '../../components/auth/LoginForm'; // This import remains the same
+import { OAuthButtons } from '../../components/auth/OAuthButtons'; // This import remains the same
+// Input and Button are also available but might not be used directly in the page component itself,
+// as they are used within LoginForm and OAuthButtons.
+
+export default function LoginPage() {
+  return (
+    // Use a container for full page layout
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900"> // Example background
+      {/* Use the styled Card component */}
+      <Card className="w-full max-w-md p-6 space-y-6">
+        {/* Use the styled CardHeader component */}
+        <CardHeader className="text-center">
+          {/* Add Logo */}
+          <h1 className="text-3xl font-bold">App Name</h1>
+          <p className="text-muted-foreground">Sign in to your account</p>
+        </CardHeader>
+
+        {/* Use the styled CardContent component */}
+        <CardContent className="space-y-4">
+          <LoginForm /> {/* Contains email/password form logic and inputs */}
+
+          <div className="relative"> {/* Or separator */}
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-gray-300 dark:border-gray-700"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
+          <OAuthButtons /> {/* Contains Google/GitHub buttons */}
+        </CardContent>
+
+        {/* Use the styled CardFooter component */}
+        <CardFooter className="flex justify-between text-sm">
+           <Link to="/signup" className="text-blue-600 hover:text-blue-800">
+             Don&apos;t have an account? Sign up
+           </Link>
+           <Link to="/reset-password" className="text-blue-600 hover:text-blue-800">
+             Forgot Password?
+           </Link>
+         </CardFooter>
+      </Card>
+    </div>
+  );
+}
+--- END OF FILE: src\presentation\pages\auth\Login.tsx ---
+
+--- FILE PATH: src\presentation\pages\auth\ResetPassword.tsx ---
+import { ResetPasswordForm } from "../../components/auth/ResetPasswordForm";
+
+const ResetPassword: React.FC = () => {
+  return (
+    <div className="max-w-md mx-auto mt-12 space-y-6">
+      <h1 className="text-2xl font-bold text-center">Reset Password</h1>
+      <ResetPasswordForm />
+    </div>
+  );
+};
+
+export default ResetPassword;
+
+--- END OF FILE: src\presentation\pages\auth\ResetPassword.tsx ---
+
+--- FILE PATH: src\presentation\pages\auth\Signup.tsx ---
+import { SignupForm } from "../../components/auth/SignupForm";
+
+const Signup: React.FC = () => {
+  return (
+    <div className="max-w-md mx-auto mt-12 space-y-6">
+      <h1 className="text-2xl font-bold text-center">Sign Up</h1>
+      <SignupForm />
+    </div>
+  );
+};
+
+export default Signup;
+
+--- END OF FILE: src\presentation\pages\auth\Signup.tsx ---
+
+--- FILE PATH: src\presentation\pages\auth\UpdatePassword.tsx ---
+import React, { useState } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+
+const UpdatePassword: React.FC = () => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const { updatePassword, loading } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      setMessage('Passwords do not match');
+      return;
+    }
+
+    try {
+      const { error } = await updatePassword(password);
+      if (error) {
+        setMessage('Failed to update password: ' + error.message);
+      } else {
+        setMessage('Password updated successfully');
+        setTimeout(() => navigate('/login'), 2000);
+      }
+    } catch (error: any) {
+      setMessage('Failed to update password: ' + error.message);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-6">Update Password</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            New Password
+          </label>
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+            required
+          />
+        </div>
+        <div>
+          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+            Confirm Password
+          </label>
+          <input
+            type="password"
+            id="confirmPassword"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+            required
+          />
+        </div>
+        {message && (
+          <p className={`text-sm ${message.includes('Failed') ? 'text-red-600' : 'text-green-600'}`}>
+            {message}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          {loading ? 'Updating...' : 'Update Password'}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+export default UpdatePassword;
+
+--- END OF FILE: src\presentation\pages\auth\UpdatePassword.tsx ---
+
+--- FILE PATH: src\presentation\pages\billing\ManageBilling.tsx ---
+import { BillingPortal } from "../../components/billing/BillingPortal";
+
+const ManageBilling: React.FC = () => {
+  return (
+    <div className="p-8">
+      <BillingPortal />
+    </div>
+  );
+};
+
+export default ManageBilling;
+
+--- END OF FILE: src\presentation\pages\billing\ManageBilling.tsx ---
+
+--- FILE PATH: src\presentation\pages\dashboard\Dashboard.tsx ---
+import { DashboardHome } from "../../components/dashboard/DashboardHome";
+
+const Dashboard: React.FC = () => {
+  return (
+    <div className="p-8">
+      <DashboardHome />
+    </div>
+  );
+};
+
+export default Dashboard;
+
+--- END OF FILE: src\presentation\pages\dashboard\Dashboard.tsx ---
+
+--- FILE PATH: src\presentation\pages\error\NotFound.tsx ---
+import { Link } from "react-router-dom";
+
+const NotFound: React.FC = () => {
+  return (
+    <div className="text-center p-8">
+      <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
+      <p className="mb-4">Sorry, the page you are looking for does not exist.</p>
+      <Link to="/" className="text-blue-600 underline">
+        Go back home
+      </Link>
+    </div>
+  );
+};
+
+export default NotFound;
+
+--- END OF FILE: src\presentation\pages\error\NotFound.tsx ---
+
+--- FILE PATH: src\presentation\pages\error\ServerError.tsx ---
+import { Link } from "react-router-dom";
+
+const ServerError: React.FC = () => {
+  return (
+    <div className="text-center p-8">
+      <h1 className="text-4xl font-bold mb-4">500 - Server Error</h1>
+      <p className="mb-4">Something went wrong. Please try again later.</p>
+      <Link to="/" className="text-blue-600 underline">
+        Go back home
+      </Link>
+    </div>
+  );
+};
+
+export default ServerError;
+
+--- END OF FILE: src\presentation\pages\error\ServerError.tsx ---
+
+--- FILE PATH: src\presentation\pages\profile\EditProfile.tsx ---
+import { useState, useEffect } from "react";
+import { useAuth } from "../../hooks/useAuth";
+import { useProfile } from "../../hooks/useProfile";
+
+const EditProfile: React.FC = () => {
+  const { user } = useAuth();
+  const { profile, fetchProfile, updateProfile } = useProfile();
+  const [fullName, setFullName] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile(user.id);
+    }
+  }, [user, fetchProfile]);
+
+  useEffect(() => {
+    if (profile?.fullName) {
+      setFullName(profile.fullName);
+    }
+  }, [profile]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      await updateProfile({ ...user, fullName });
+      alert("Profile updated!");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to update profile.");
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-12 space-y-6">
+      <h1 className="text-2xl font-bold text-center">Edit Profile</h1>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <input
+          type="text"
+          placeholder="Full Name"
+          className="border p-2"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          required
+        />
+        <button type="submit" className="bg-blue-700 text-white p-2 rounded">
+          Save Changes
+        </button>
+      </form>
+    </div>
+  );
+};
+
+export default EditProfile;
+
+--- END OF FILE: src\presentation\pages\profile\EditProfile.tsx ---
+
+--- FILE PATH: src\presentation\routes\PrivateRoute.tsx ---
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+
+export const PrivateRoute: React.FC = () => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Outlet />;
+};
+
+--- END OF FILE: src\presentation\routes\PrivateRoute.tsx ---
+
+--- FILE PATH: src\presentation\routes\RoleBasedRoute.tsx ---
+import { Navigate, Outlet } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+
+interface RoleBasedRouteProps {
+  requiredRole: 'user' | 'admin';
+}
+
+export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({ requiredRole }) => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role !== requiredRole) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Outlet />;
+};
+
+--- END OF FILE: src\presentation\routes\RoleBasedRoute.tsx ---
+
+--- FILE PATH: src\presentation\styles\tailwind.css ---
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Custom styles */
+.btn {
+  @apply px-4 py-2 rounded-md font-medium;
+}
+
+/* Optional custom overrides */
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+--- END OF FILE: src\presentation\styles\tailwind.css ---
+
+--- FILE PATH: src\presentation\ui\atoms\button.tsx ---
+import * as React from "react";
+
+import { cn } from "@/lib/utils"; // Using the configured alias instead of relative path
+
+// Define a basic set of props extending standard button attributes
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  // You could add a 'variant' prop here later if you want different button styles
+  // variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  // size?: "default" | "sm" | "lg" | "icon";
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, children, disabled, ...props }, ref) => {
+    // Base styles common to all button variants (if you add them later)
+    const baseStyles = "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+
+    // Default (Primary) button styles using your theme variables
+    const defaultVariantStyles = "bg-primary text-primary-foreground hover:bg-primary/90";
+
+    // Default size styles
+    const defaultSizeStyles = "h-10 px-4 py-2";
+
+
+    return (
+      <button
+        className={cn(baseStyles, defaultVariantStyles, defaultSizeStyles, className)}
+        disabled={disabled}
+        ref={ref}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+Button.displayName = "Button";
+
+export { Button };
+--- END OF FILE: src\presentation\ui\atoms\button.tsx ---
+
+--- FILE PATH: src\presentation\ui\atoms\card.tsx ---
+import * as React from "react";
+import { cn } from "@/lib/utils"; // Using the configured alias instead of relative path
+
+// Base Card component
+const Card = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border bg-card text-card-foreground shadow-sm", // Base card styles
+      className
+    )}
+    {...props}
+  />
+));
+Card.displayName = "Card";
+
+// Optional sub-components for structure within the Card
+const CardHeader = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex flex-col space-y-1.5 p-6", className)} // Base header styles
+    {...props}
+  />
+));
+CardHeader.displayName = "CardHeader";
+
+const CardContent = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-6 pt-0", className)} {...props} /> // Base content styles (pt-0 assumes header has padding-bottom)
+));
+CardContent.displayName = "CardContent";
+
+const CardFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn("flex items-center p-6 pt-0", className)} // Base footer styles
+    {...props}
+  />
+));
+CardFooter.displayName = "CardFooter";
+
+export { Card, CardHeader, CardContent, CardFooter };
+--- END OF FILE: src\presentation\ui\atoms\card.tsx ---
+
+--- FILE PATH: src\presentation\ui\atoms\index.ts ---
+export * from "./button";
+export * from "./card"; // This exports Card, CardHeader, CardContent, CardFooter
+export * from "./input";
+
+// Add other atom components here as you create them
+--- END OF FILE: src\presentation\ui\atoms\index.ts ---
+
+--- FILE PATH: src\presentation\ui\atoms\input.tsx ---
+import * as React from "react";
+import { cn } from "@/lib/utils"; // Using the configured alias instead of relative pathimport { cn } from "../../../../lib/utils"; // Adjusted path relative to atoms folder
+
+export interface InputProps
+  extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+Input.displayName = "Input";
+
+export { Input };
+--- END OF FILE: src\presentation\ui\atoms\input.tsx ---
+
+--- FILE PATH: src\presentation\ui\index.ts ---
+
+--- END OF FILE: src\presentation\ui\index.ts ---
+
+--- FILE PATH: src\types\auth.ts ---
+export interface LoginCredentials {
+    email: string;
+    password: string;
+  }
+  
+  export interface SignupCredentials {
+    email: string;
+    password: string;
+  }
+  
+--- END OF FILE: src\types\auth.ts ---
+
+--- FILE PATH: src\types\billing.ts ---
+export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled";
+
+export type PlanName = "basic" | "pro" | "enterprise";
+
+export interface SubscriptionDetails {
+  id: string;
+  userId: string;
+  plan: PlanName;
+  status: SubscriptionStatus;
+  currentPeriodEnd: Date;
+}
+
+--- END OF FILE: src\types\billing.ts ---
+
+--- FILE PATH: src\types\user.ts ---
+export type UserRole = "user" | "admin";
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  fullName?: string;
+  avatarUrl?: string;
+  role?: UserRole;
+}
+
+--- END OF FILE: src\types\user.ts ---
+
+--- FILE PATH: src\utils\cn.ts ---
+// src/lib/utils/cn.ts
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+/**
+ * A utility function to conditionally join and merge CSS class names,
+ * specifically optimized for Tailwind CSS conflicts.
+ * Uses clsx for joining and tailwind-merge for merging.
+ */
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+--- END OF FILE: src\utils\cn.ts ---
+
+--- FILE PATH: src\utils\helpers.ts ---
+// Format dates nicely
+export function formatDate(date: Date | string): string {
+    const d = new Date(date);
+    return d.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+  
+  // Capitalize the first letter of a string
+  export function capitalize(text: string): string {
+    if (!text) return "";
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  
+  // Shorten large numbers (like Stripe invoices)
+  export function formatCurrency(amount: number, currency = "USD"): string {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).format(amount / 100); // Stripe uses cents
+  }
+  
+--- END OF FILE: src\utils\helpers.ts ---
+
+--- FILE PATH: src\utils\index.ts ---
+// src/lib/utils/index.ts
+
+export { cn } from "./cn";
+
+// Add exports for other utility files you might add to src/lib/utils/ later
+// export * from "./someOtherUtilityFile";
+--- END OF FILE: src\utils\index.ts ---
+
+--- FILE PATH: src\utils\toasts.ts ---
+import { toast } from "react-toastify";
+
+export function showSuccess(message: string) {
+  toast.success(message, {
+    position: "top-right",
+    autoClose: 3000,
+  });
+}
+
+export function showError(message: string) {
+  toast.error(message, {
+    position: "top-right",
+    autoClose: 5000,
+  });
+}
+
+export function showInfo(message: string) {
+  toast.info(message, {
+    position: "top-right",
+    autoClose: 3000,
+  });
+}
+
+--- END OF FILE: src\utils\toasts.ts ---
+
+--- FILE PATH: src\utils\validators.ts ---
+// Validate email format
+export function isValidEmail(email: string): boolean {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  }
+  
+  // Validate password strength
+  export function isStrongPassword(password: string): boolean {
+    // At least 8 chars, one uppercase, one lowercase, one number
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
+    return regex.test(password);
+  }
+  
+  // Validate that two passwords match
+  export function doPasswordsMatch(password: string, confirmPassword: string): boolean {
+    return password === confirmPassword;
+  }
+  
+--- END OF FILE: src\utils\validators.ts ---
+
+--- FILE PATH: src\vite-env.d.ts ---
+/// <reference types="vite/client" />
+
+--- END OF FILE: src\vite-env.d.ts ---
+
